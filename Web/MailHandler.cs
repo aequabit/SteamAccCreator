@@ -54,52 +54,51 @@ namespace SteamAccCreator.Web
 			return text;
 		}
 
-		public void ConfirmMail(string address)
-		{
-			Thread.Sleep(5000);
-			this.restClient_0.BaseUrl = MailHandler.jdevMailv3;
-			this.restRequest_0.Method = Method.GET;
-			byte[] bytes = Convert.FromBase64String("MTc4MTg4MjE5Mzg5MTI3MTo=");
-			string value = MailHandler.Reverse(MailHandler.Base64Encode(MailHandler.Base64Encode(MailHandler.Base64Encode(MailHandler.Base64Encode(MailHandler.Reverse(MailHandler.Base64Encode(MailHandler.Reverse(MailHandler.Encipher(Encoding.UTF8.GetString(bytes) + address, 9)))))))));
-			this.restRequest_0.AddParameter("query", value);
-			IRestResponse restResponse = this.restClient_0.Execute(this.restRequest_0);
-			object arg;
-			try
-			{
-				arg = JsonConvert.DeserializeObject(restResponse.Content);
-			}
-			catch (Exception)
-			{
-				arg = "";
-			}
-			this.restRequest_0.Parameters.Clear();
-			try
-			{
-				if (MailHandler.Class8.callSite_1 == null)
-				{
-					MailHandler.Class8.callSite_1 = CallSite<Func<CallSite, object, string>>.Create(Binder.Convert(CSharpBinderFlags.None, typeof(string), typeof(MailHandler)));
-				}
-				Func<CallSite, object, string> target = MailHandler.Class8.callSite_1.Target;
-				CallSite callSite_ = MailHandler.Class8.callSite_1;
-				if (MailHandler.Class8.callSite_0 == null)
-				{
-					MailHandler.Class8.callSite_0 = CallSite<Func<CallSite, object, object>>.Create(Binder.GetMember(CSharpBinderFlags.None, "First", typeof(MailHandler), new CSharpArgumentInfo[]
-					{
-						CSharpArgumentInfo.Create(CSharpArgumentInfoFlags.None, null)
-					}));
-				}
-				string input = target(callSite_, MailHandler.Class8.callSite_0.Target(MailHandler.Class8.callSite_0, arg));
-				string[] array = Regex.Split(Regex.Split(input, "stoken=")[1], "&");
-				string[] array2 = Regex.Split(Regex.Split(input, "creationid=")[1], " ");
-				string arg2 = "stoken=" + array[0] + "&creationid=" + array2[0];
-				this.method_1(new Uri(MailHandler.steamVerificationURL + arg2));
-			}
-			catch (Exception)
-			{
-			}
-		}
+        public void ConfirmMail(string address)
+        {
+            try
+            {
+                // Wait 5s
+                Thread.Sleep(5000);
 
-		private string method_0(string string_0)
+                // Rest apis to comunicate with
+                var inboxKittenClient = new RestClient("https://inboxkitten.com/api/");
+                var steamClient = new RestClient("https://store.steampowered.com/account/newaccountverification");
+
+                // Request the inbox of email
+                var listEmailsRequest = new RestRequest("v1/mail/list");
+                listEmailsRequest.AddParameter("recipient", address.Split('@')[0]);
+                var listEmailsResponse = inboxKittenClient.Execute(listEmailsRequest).Content;
+
+                // Select the first email. Parse the response for a key and 2 letters that need to go before that key ie se-key
+                var url = listEmailsResponse.Substring(listEmailsResponse.IndexOf("{\"url\":") + 8).Split('"')[0];
+                var key = listEmailsResponse.Substring(listEmailsResponse.IndexOf("\"key\":\"") + 7).Split('"')[0];
+                var region = url.Substring(8, 2);
+
+                // Get the verification email
+                var getEmailRequest = new RestRequest("v1/mail/getKey");
+                getEmailRequest.AddParameter("mailKey", region + "-" + key);
+                var emailResponse = inboxKittenClient.Execute(getEmailRequest).Content;
+
+                // Parse the email for the verification link and (extract a token and id from it)
+                var verifyLink = emailResponse.Substring(emailResponse.IndexOf("https://store.steampowered.com/account/newaccountverification")).Split('"')[0];
+                var stoken = verifyLink.Substring(verifyLink.IndexOf("stoken=") + 7).Split('&')[0];
+                var creationid = verifyLink.Substring(verifyLink.IndexOf("creationid=") + 11).Split('\\')[0];
+
+                // Send the verification Request
+                var verifySteamRequest = new RestRequest("");
+                verifySteamRequest.AddParameter("stoken", stoken);
+                verifySteamRequest.AddParameter("creationid", creationid);
+                var verificationResponse = steamClient.Execute(verifySteamRequest).Content;
+
+            }
+            catch (Exception)
+            {
+                // Ignore errors
+            }
+        }
+
+        private string method_0(string string_0)
 		{
 			this.restClient_0.BaseUrl = MailHandler.jdevMailAPI;
 			this.restRequest_0.Method = Method.GET;
